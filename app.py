@@ -2,12 +2,11 @@ import tkinter as tk
 import customtkinter as ctk 
 
 from PIL import ImageTk 
-from authtoken import auth_token
 
 import torch 
 from torch import autocast 
 from diffusers import StableDiffusionPipeline
-
+auth_token = "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"
 # create app
 app = tk.Tk()
 app.geometry("532x622")
@@ -25,17 +24,34 @@ Imain = ctk.CTkLabel(master=app, width=512, height=512)
 Imain.place(x=10, y=110)
 
 modelid= "CompVis/stable-diffusion-v1-4"
-device = "cuda"
-pipe = StableDiffusionPipeline.from_pretrained(modelid, revision="fp16", torch_dtypes=torch.float16, use_auth_token=auth_token)
+device = "cuda" if torch.cuda.is_available() else "cpu"  
+
+if device == "cuda":
+    pipe = StableDiffusionPipeline.from_pretrained(
+        modelid, 
+        revision="fp16", 
+        torch_dtype=torch.float16, 
+        use_auth_token=auth_token
+    )
+else:
+    pipe = StableDiffusionPipeline.from_pretrained(
+        modelid, 
+        torch_dtype=torch.float32, 
+        use_auth_token=auth_token
+    )
 pipe.to(device)
 
 
 def generate():
-    with autocast(device):
-        image = pipe(prompt.get(), guidance_scale=8.5)["sample"][0]
+    prompt_text = prompt.get()  # Get the text input from the user
+    with torch.no_grad():  # Disable gradients for inference
+        with autocast(device) if device == "cuda" else torch.cuda.amp.autocast(enabled=False):
+            image = pipe(prompt_text, guidance_scale=8.5)["images"][0]  # Generate the image
+    # img = ImageTk.PhotoImage(image.resize((512, 512)))  # Resize the image to fit the label
+    image.save('generatedimage.png')
     img = ImageTk.PhotoImage(image)
-    img.save("generatedimage.png")
-    Imain.confgure(image=img)
+    Imain.configure(image=img)
+    Imain.image = img 
 
 
 trigger = ctk.CTkButton(master=app, height=40, width=120, font=("Arial", 20), fg_color="blue", text_color="white", command=generate)
